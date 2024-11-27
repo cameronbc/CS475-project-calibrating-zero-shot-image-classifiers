@@ -12,3 +12,34 @@ This class project investigates the effectiveness of calibration methods for zer
 ## Quickstart
 
 The code in this repository is designed to be run in Google Colab.
+
+## Experiments
+
+### Calibration methods
+
+- Platt Scaling
+- Isotonic Regression
+- Similarity Binning
+
+### Conditions
+
+- Same class, same domain
+- Different class, same domain
+- Different domain, same class
+- Different domain, different class
+
+### Datasets
+
+  - Imagenet (selected classes)
+  - AID (selected classes)
+
+
+### Results
+
+- Classifier results
+  - Confusion matrix
+  - Accuracy, precision, recall, F1
+- Calibration results
+  - Reliability plots
+  - smECE
+  - Brier score
