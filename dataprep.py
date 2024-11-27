@@ -7,7 +7,7 @@ For ImageNet-1k, get data here https://huggingface.co/datasets/ILSVRC/imagenet-1
 (requires signing agreement and getting token)
 
 AID can be downloaded here: https://huggingface.co/datasets/blanchon/AID
-Easiest way is to download it locally and use imagefolder loader
+Easiest way is to download it locally and use imagefolder loader.
 (original download links from https://captain-whu.github.io/AID/ are stale)
 
 1. Load dataset/split as huggingface dataset
@@ -18,24 +18,24 @@ Easiest way is to download it locally and use imagefolder loader
 6. Save the new dataset to disk
 
 # "Llama" is ImageNet class 355
-python dataprep.py imagenet --split train 355 hf-data/llama-train
-python dataprep.py imagenet --split validation 355 hf-data/llama-test
+python dataprep.py imagenet --split train 355 ./data/llama-train
+python dataprep.py imagenet --split validation 355 ./data/llama-test
 # "Golden Retriever" is ImageNet class 207
-python dataprep.py imagenet --split train 207 hf-data/golden-retriever-train
-python dataprep.py imagenet --split validation 207 hf-data/golden-retriever-test
+python dataprep.py imagenet --split train 207 ./data/golden-retriever-train
+python dataprep.py imagenet --split validation 207 ./data/golden-retriever-test
 # "Labrador Retriever" is ImageNet class 208
-python dataprep.py imagenet --split train 208 hf-data/labrador-retriever-train
-python dataprep.py imagenet --split validation 208 hf-data/labrador-retriever-test
+python dataprep.py imagenet --split train 208 ./data/labrador-retriever-train
+python dataprep.py imagenet --split validation 208 ./data/labrador-retriever-test
 # "Crane" (bird, not machine) is ImageNet class 134
-python dataprep.py imagenet --split train 134 hf-data/crane-train
-python dataprep.py imagenet --split validation 134 hf-data/crane-test
+python dataprep.py imagenet --split train 134 ./data/crane-train
+python dataprep.py imagenet --split validation 134 ./data/crane-test
 # "Sunglasses" is ImageNet class 837
-python dataprep.py imagenet --split train 837 hf-data/sunglasses-train
-python dataprep.py imagenet --split validation 837 hf-data/sunglasses-test
+python dataprep.py imagenet --split train 837 ./data/sunglasses-train
+python dataprep.py imagenet --split validation 837 ./data/sunglasses-test
 # "Beach" is ImageNet class 978, AID class 3
-python dataprep.py imagenet --split train 978 hf-data/beach-train
-python dataprep.py imagenet --split validation 978 hf-data/beach-test
-python dataprep.py aid --datadir /path/to/AID 3 hf-data/beach-test-ood
+python dataprep.py imagenet --split train 978 ./data/beach-train
+python dataprep.py imagenet --split validation 978 ./data/beach-test
+python dataprep.py aid --datadir /path/to/AID 3 ./data/beach-test-ood
 """
 
 import argparse
@@ -108,7 +108,7 @@ def main(args: Optional[argparse.Namespace] = None) -> Optional[int]:
     dataset = dataset.map(
         lambda x: {
             "image": resizer(x["image"]).convert("RGB"),
-            "label": x["label"],
+            "label": 1 if x["label"] == args.target else 0,
         },
         num_proc=4,
     )
