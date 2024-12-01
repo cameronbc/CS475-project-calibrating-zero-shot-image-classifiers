@@ -7,8 +7,11 @@ For ImageNet-1k, get data here https://huggingface.co/datasets/ILSVRC/imagenet-1
 (requires signing agreement and getting token)
 
 AID can be downloaded here: https://huggingface.co/datasets/blanchon/AID
+(e.g. via `git clone https://hf.co/datasets/blanchon/AID`, be sure to install git lfs)
 Easiest way is to download it locally and use imagefolder loader.
 (original download links from https://captain-whu.github.io/AID/ are stale)
+
+Places365 can be downloaded here: http://data.csail.mit.edu/places/places365/places365standard_easyformat.tar
 
 1. Load dataset/split as huggingface dataset
 2. Choose a target class
@@ -40,6 +43,7 @@ python dataprep.py aid --datadir /path/to/AID 3 ./data/beach-test-ood
 
 import argparse
 import inspect
+import io
 import logging
 import logging.config
 import sys
@@ -48,10 +52,58 @@ from timeit import default_timer as timer
 from typing import Optional
 
 import datasets
+import PIL.Image
 import torchvision.transforms
+
 
 MODULE_NAME = pathlib.Path(__file__).resolve().stem
 LOG = logging.getLogger(MODULE_NAME)
+
+AID_LABELS = (
+    "Airport",
+    "BaseballField",
+    "Beach",
+    "Bridge",
+    "Church",
+    "Desert",
+    "Farmland",
+    "Forest",
+    "Industrial",
+    "Meadow",
+    "MediumResidential",
+    "Mountain",
+    "Park",
+    "Parking",
+    "Playground",
+    "Pond",
+    "RailwayStation",
+    "River",
+    "School",
+    "Viaduct",
+)
+
+PLACES365_LABELS = (
+    "airfield",
+    "stadium-baseball",
+    "beach",
+    "bridge",
+    "church-outdoor",
+    "desert-sand",
+    "farm",
+    "forest-broadleaf",
+    "industrial_area",
+    "field-cultivated",
+    "residential_neighborhood",
+    "mountain",
+    "park",
+    "parking_garage-outdoor",
+    "playground",
+    "pond",
+    "train_station-platform",
+    "river",
+    "schoolhouse",
+    "viaduct",
+)
 
 
 def main(args: Optional[argparse.Namespace] = None) -> Optional[int]:
@@ -61,60 +113,85 @@ def main(args: Optional[argparse.Namespace] = None) -> Optional[int]:
         args = parser.parse_args()
     configure_logging(args.verbose)
     start_time = timer()
-    if args.dataset == "imagenet":
-        dataset = datasets.load_dataset(
-            "imagenet-1k",
-            trust_remote_code=True,
-            split=args.split,
-        )
-    elif args.dataset == "aid":
-        dataset = datasets.load_dataset(
-            "imagefolder",
-            data_dir=args.datadir,
-            split="train",  # AID has no splits
-        )
-    else:
-        LOG.error(f"Unknown dataset: {args.dataset}")
-        return 1
 
-    # targets = dataset.filter(lambda x: x["label"] == args.target, num_proc=4)
-    targets = dataset.filter(
-        lambda examples: [label == args.target for label in examples["label"]],
-        batched=True,
-        num_proc=4,
-        batch_size=1000,
-    )
-    original_num_target = len(targets)
-    if args.num_target and args.num_target < original_num_target:
-        targets = targets.shuffle(seed=42).select(range(args.num_target))
-    LOG.info(f"Selected {len(targets)} target class images from {original_num_target}")
-    non_targets = (
-        dataset.filter(
-            lambda examples: [label != args.target for label in examples["label"]],
-            batched=True,
-            num_proc=4,
-            batch_size=1000,
-        )
-        .shuffle(seed=42)
-        .select(range(args.num_non_target * len(targets)))
-    )
-    dataset = datasets.concatenate_datasets([targets, non_targets])
     resizer = torchvision.transforms.Resize(
         size=(224, 224),
         interpolation=torchvision.transforms.InterpolationMode.BICUBIC,
         max_size=None,
         antialias=True,
     )
+    transform = lambda img: convert_to_jpeg(resizer(img))
+
+    aid_dataset = datasets.load_dataset(
+        "imagefolder",
+        # note: HF puts the data in a subdirectory named "data"
+        data_dir=args.datadir / "AID" / "data",
+        split="train",  # AID has no splits, train is default
+    )
+    aid_dataset = filter_dataset(aid_dataset, AID_LABELS, transform)
+    aid_dataset.save_to_disk(args.outdir / "aid")
+
+    places365_val_dataset = datasets.load_dataset(
+        "imagefolder",
+        data_dir=args.datadir / "places365_standard",
+        split="val",
+    )
+    places365_val_dataset = filter_dataset(places365_val_dataset, PLACES365_LABELS, transform, AID_LABELS)
+    places365_val_dataset.save_to_disk(args.outdir / "places365-val")
+
+    LOG.warning(
+        "Places365 dataset is large and slow to process (~20 minutes w/SSD and 4 cores)"
+    )
+    places365_train_dataset = datasets.load_dataset(
+        "imagefolder",
+        data_dir=args.datadir / "places365_standard",
+        split="train",
+    )
+    places365_train_dataset = filter_dataset(places365_train_dataset, PLACES365_LABELS, transform, AID_LABELS)
+    places365_train_dataset.save_to_disk(args.outdir / "places365-train")
+
+    # imagenet_dataset = datasets.load_dataset(
+    #     "imagenet-1k",
+    #     trust_remote_code=True,
+    #     split=args.split,
+    # )
+    total_time = timer() - start_time
+    LOG.info(f"Ran the script in {total_time:.3f} seconds")
+
+
+def filter_dataset(dataset, label_names, transform, new_label_names=None):
+    """Filter the dataset to include only the specified labels."""
+    label_nums = tuple(
+        dataset.features["label"].str2int(label) for label in label_names
+    )
+    label_map = {orig: i for i, orig in enumerate(label_nums)}
+    dataset = dataset.filter(
+        lambda examples: [label in label_nums for label in examples["label"]],
+        batched=True,
+        num_proc=4,
+        batch_size=1000,
+    )
     dataset = dataset.map(
         lambda x: {
-            "image": resizer(x["image"]).convert("RGB"),
-            "label": 1 if x["label"] == args.target else 0,
+            "image": transform(x["image"]),
+            "label": label_map[x["label"]],
         },
         num_proc=4,
     )
-    dataset.save_to_disk(args.outdir)
-    total_time = timer() - start_time
-    LOG.info(f"Ran the script in {total_time:.3f} seconds")
+    if new_label_names is not None:
+        label_names = new_label_names
+    dataset = dataset.cast_column("label", datasets.ClassLabel(names=label_names))
+    return dataset
+
+
+def convert_to_jpeg(image, quality: int = 85):
+    """Convert a PIL image to JPEG format with specified quality."""
+    buffer = io.BytesIO()
+    if image.mode in ("RGBA", "P"):
+        image = image.convert("RGB")
+    image.save(buffer, format="JPEG", quality=quality)
+    buffer.seek(0)
+    return PIL.Image.open(buffer)
 
 
 def configure_logging(verbosity: int = 0) -> None:
@@ -155,41 +232,10 @@ def build_parser(
         help="increase output verbosity",
     )
     parser.add_argument(
-        "--datadir",
-        "-d",
+        "datadir",
         type=pathlib.Path,
         default=None,
-        help="directory containing the dataset",
-    )
-    parser.add_argument(
-        "--num-target",
-        "-n",
-        type=int,
-        default=None,
-        help="number of target class images to sample",
-    )
-    parser.add_argument(
-        "--num-non-target",
-        "-m",
-        type=int,
-        default=10,
-        help="number of non-target class images to sample per target image",
-    )
-    parser.add_argument(
-        "--split",
-        "-s",
-        default=None,
-        help="dataset split to load [default=None]",
-    )
-    parser.add_argument(
-        "dataset",
-        choices=("imagenet", "aid"),
-        help="dataset name to process",
-    )
-    parser.add_argument(
-        "target",
-        type=int,
-        help="target class for binary classification",
+        help="directory containing the datasets",
     )
     parser.add_argument(
         "outdir",

@@ -13,13 +13,34 @@ This class project investigates the effectiveness of calibration methods for zer
 
 The code in this repository is designed to be run in Google Colab.
 
+## Data Processing
+
+If running this project in Google Colab, the preprocessed data is already
+set up to be loaded into the notebook from Google Drive.
+
+If running locally, use the following instructions to fetch the data and
+process it for use in the notebook:
+
+```bash
+mkdir data/raw
+pushd data/raw
+# note: ensure git-lfs is installed first, e.g. with `sudo apt install git-lfs`
+git lfs install
+git clone https://hf.co/datasets/blanchon/AID
+# note: places365 is about 25GB and needs another 25GB for intermediate processing
+wget http://data.csail.mit.edu/places/places365/places365standard_easyformat.tar
+tar -xvf places365standard_easyformat.tar
+rm places365standard_easyformat.tar
+popd
+```
+
 ## Experiments
 
 ### Calibration methods
 
 - Platt Scaling
 - Isotonic Regression
-- Similarity Binning
+- Similarity Binning Averaging
 
 ### Conditions
 
@@ -31,7 +52,9 @@ The code in this repository is designed to be run in Google Colab.
 ### Datasets
 
   - Imagenet (selected classes)
+  - Places365 (selected classes)
   - AID (selected classes)
+
 
 
 ### Results
