@@ -1,44 +1,24 @@
-"""Pre-process image datasets.
+"""Pre-process Places365 and AID image datasets for upload to Google Drive.
 
-For each image dataset, we want to make one or more subsets suitable for a
-binary classification (and calibration) task.
+- AID (Aerial Image Dataset)
+  - Xia, Gui-Song, et al. "AID: A benchmark data set for performance evaluation of aerial scene classification." IEEE Transactions on Geoscience and Remote Sensing 55.7 (2017): 3965-3981.
+  - project page: https://captain-whu.github.io/AID/
+  - download instructions: install git lfs, then `git clone https://hf.co/datasets/blanchon/AID`
+- Places365
+  - Zhou, Bolei, et al. "Places: A 10 million image database for scene recognition." IEEE transactions on pattern analysis and machine intelligence 40.6 (2017): 1452-1464.
+  - project page: http://places2.csail.mit.edu/
+  - downloads page: http://places2.csail.mit.edu/download-private.html
+  - download instructions: wget http://data.csail.mit.edu/places/places365/places365standard_easyformat.tar
 
-For ImageNet-1k, get data here https://huggingface.co/datasets/ILSVRC/imagenet-1k
-(requires signing agreement and getting token)
+This script does the following:
 
-AID can be downloaded here: https://huggingface.co/datasets/blanchon/AID
-(e.g. via `git clone https://hf.co/datasets/blanchon/AID`, be sure to install git lfs)
-Easiest way is to download it locally and use imagefolder loader.
-(original download links from https://captain-whu.github.io/AID/ are stale)
+1. Loads dataset train splits as huggingface datasets
+2. Filters down to 20 classes that are shared between AID and Places365
+3. Map AID class names to Places365 class names
+4. Process all images to 224x224 RGB JPEGs
+5. Save the new datasets to disk as huggingface datasets
 
-Places365 can be downloaded here: http://data.csail.mit.edu/places/places365/places365standard_easyformat.tar
-
-1. Load dataset/split as huggingface dataset
-2. Choose a target class
-3. Collect all target class images
-4. For each target class image, sample k non-target images (k=10 by default)
-5. Resize all images to 224x224
-6. Save the new dataset to disk
-
-# "Llama" is ImageNet class 355
-python dataprep.py imagenet --split train 355 ./data/llama-train
-python dataprep.py imagenet --split validation 355 ./data/llama-test
-# "Golden Retriever" is ImageNet class 207
-python dataprep.py imagenet --split train 207 ./data/golden-retriever-train
-python dataprep.py imagenet --split validation 207 ./data/golden-retriever-test
-# "Labrador Retriever" is ImageNet class 208
-python dataprep.py imagenet --split train 208 ./data/labrador-retriever-train
-python dataprep.py imagenet --split validation 208 ./data/labrador-retriever-test
-# "Crane" (bird, not machine) is ImageNet class 134
-python dataprep.py imagenet --split train 134 ./data/crane-train
-python dataprep.py imagenet --split validation 134 ./data/crane-test
-# "Sunglasses" is ImageNet class 837
-python dataprep.py imagenet --split train 837 ./data/sunglasses-train
-python dataprep.py imagenet --split validation 837 ./data/sunglasses-test
-# "Beach" is ImageNet class 978, AID class 3
-python dataprep.py imagenet --split train 978 ./data/beach-train
-python dataprep.py imagenet --split validation 978 ./data/beach-test
-python dataprep.py aid --datadir /path/to/AID 3 ./data/beach-test-ood
+The resulting datasets can then be zipped and uploaded to Google Drive for use in Google Colab.
 """
 
 import argparse
@@ -128,33 +108,33 @@ def main(args: Optional[argparse.Namespace] = None) -> Optional[int]:
         data_dir=args.datadir / "AID" / "data",
         split="train",  # AID has no splits, train is default
     )
-    aid_dataset = filter_dataset(aid_dataset, AID_LABELS, transform)
+    aid_dataset = filter_dataset(aid_dataset, AID_LABELS, transform, PLACES365_LABELS)
     aid_dataset.save_to_disk(args.outdir / "aid")
 
-    places365_val_dataset = datasets.load_dataset(
-        "imagefolder",
-        data_dir=args.datadir / "places365_standard",
-        split="val",
-    )
-    places365_val_dataset = filter_dataset(places365_val_dataset, PLACES365_LABELS, transform, AID_LABELS)
-    places365_val_dataset.save_to_disk(args.outdir / "places365-val")
-
     LOG.warning(
-        "Places365 dataset is large and slow to process (~20 minutes w/SSD and 4 cores)"
+        "Places365 dataset is large and slow to process (~40 minutes w/SSD and 4 cores)"
     )
+    if args.places_val:
+        places365_val_dataset = datasets.load_dataset(
+            "imagefolder",
+            data_dir=args.datadir / "places365_standard",
+            split="validation",
+        )
+        places365_val_dataset = filter_dataset(
+            places365_val_dataset, PLACES365_LABELS, transform
+        )
+        places365_val_dataset.save_to_disk(args.outdir / "places365-val")
+
     places365_train_dataset = datasets.load_dataset(
         "imagefolder",
         data_dir=args.datadir / "places365_standard",
         split="train",
     )
-    places365_train_dataset = filter_dataset(places365_train_dataset, PLACES365_LABELS, transform, AID_LABELS)
-    places365_train_dataset.save_to_disk(args.outdir / "places365-train")
+    places365_train_dataset = filter_dataset(
+        places365_train_dataset, PLACES365_LABELS, transform
+    )
+    places365_train_dataset.save_to_disk(args.outdir / "places365")
 
-    # imagenet_dataset = datasets.load_dataset(
-    #     "imagenet-1k",
-    #     trust_remote_code=True,
-    #     split=args.split,
-    # )
     total_time = timer() - start_time
     LOG.info(f"Ran the script in {total_time:.3f} seconds")
 
@@ -184,7 +164,7 @@ def filter_dataset(dataset, label_names, transform, new_label_names=None):
     return dataset
 
 
-def convert_to_jpeg(image, quality: int = 85):
+def convert_to_jpeg(image, quality: int = 90):
     """Convert a PIL image to JPEG format with specified quality."""
     buffer = io.BytesIO()
     if image.mode in ("RGBA", "P"):
@@ -232,10 +212,15 @@ def build_parser(
         help="increase output verbosity",
     )
     parser.add_argument(
+        "--places-val",
+        action="store_true",
+        help="if flag is given, process Places365 validation set in addition to train set",
+    )
+    parser.add_argument(
         "datadir",
         type=pathlib.Path,
         default=None,
-        help="directory containing the datasets",
+        help="directory containing the raw datasets to process",
     )
     parser.add_argument(
         "outdir",
