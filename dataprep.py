@@ -26,6 +26,7 @@ import inspect
 import io
 import logging
 import logging.config
+import shutil
 import sys
 import pathlib
 from timeit import default_timer as timer
@@ -109,7 +110,10 @@ def main(args: Optional[argparse.Namespace] = None) -> Optional[int]:
         split="train",  # AID has no splits, train is default
     )
     aid_dataset = filter_dataset(aid_dataset, AID_LABELS, transform, PLACES365_LABELS)
-    aid_dataset.save_to_disk(args.outdir / "aid")
+    aid_path = args.outdir / "aid"
+    aid_dataset.save_to_disk(aid_path)
+    if not args.no_zip:
+        shutil.make_archive(aid_path, "zip", aid_path)
 
     LOG.warning(
         "Places365 dataset is large and slow to process (~40 minutes w/SSD and 4 cores)"
@@ -123,7 +127,10 @@ def main(args: Optional[argparse.Namespace] = None) -> Optional[int]:
         places365_val_dataset = filter_dataset(
             places365_val_dataset, PLACES365_LABELS, transform
         )
-        places365_val_dataset.save_to_disk(args.outdir / "places365-val")
+        places365_val_path = args.outdir / "places365-val"
+        places365_val_dataset.save_to_disk(places365_val_path)
+        if not args.no_zip:
+            shutil.make_archive(places365_val_path, "zip", places365_val_path)
 
     places365_train_dataset = datasets.load_dataset(
         "imagefolder",
@@ -133,7 +140,10 @@ def main(args: Optional[argparse.Namespace] = None) -> Optional[int]:
     places365_train_dataset = filter_dataset(
         places365_train_dataset, PLACES365_LABELS, transform
     )
-    places365_train_dataset.save_to_disk(args.outdir / "places365")
+    places365_train_path = args.outdir / "places365"
+    places365_train_dataset.save_to_disk(places365_train_path)
+    if not args.no_zip:
+        shutil.make_archive(places365_train_path, "zip", places365_train_path)
 
     total_time = timer() - start_time
     LOG.info(f"Ran the script in {total_time:.3f} seconds")
@@ -215,6 +225,11 @@ def build_parser(
         "--places-val",
         action="store_true",
         help="if flag is given, process Places365 validation set in addition to train set",
+    )
+    parser.add_argument(
+        "--no-zip",
+        action="store_false",
+        help="if flag is given, skip writing zip archives",
     )
     parser.add_argument(
         "datadir",
