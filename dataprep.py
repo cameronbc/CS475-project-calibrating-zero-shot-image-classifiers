@@ -113,36 +113,39 @@ def main(args: Optional[argparse.Namespace] = None) -> Optional[int]:
     aid_path = args.outdir / "aid"
     aid_dataset.save_to_disk(aid_path)
     if not args.no_zip:
+        LOG.info("Zipping AID dataset")
         shutil.make_archive(aid_path, "zip", aid_path)
 
     LOG.warning(
-        "Places365 dataset is large and slow to process (~40 minutes w/SSD and 4 cores)"
+        "Places365 dataset is large and slow to process (~10 minutes w/SSD and 4 cores)"
+    )
+    places365_dataset = datasets.load_dataset(
+        "imagefolder",
+        data_files={
+            "train": str(args.datadir / "places365_standard" / "train" / "**"),
+            "validation": str(args.datadir / "places365_standard" / "val" / "**"),
+        },
     )
     if args.places_val:
-        places365_val_dataset = datasets.load_dataset(
-            "imagefolder",
-            data_dir=args.datadir / "places365_standard",
-            split="validation",
-        )
         places365_val_dataset = filter_dataset(
-            places365_val_dataset, PLACES365_LABELS, transform
+            places365_dataset["validation"],
+            PLACES365_LABELS,
+            transform,
         )
         places365_val_path = args.outdir / "places365-val"
         places365_val_dataset.save_to_disk(places365_val_path)
         if not args.no_zip:
+            LOG.info("Zipping Places365 validation dataset")
             shutil.make_archive(places365_val_path, "zip", places365_val_path)
-
-    places365_train_dataset = datasets.load_dataset(
-        "imagefolder",
-        data_dir=args.datadir / "places365_standard",
-        split="train",
-    )
     places365_train_dataset = filter_dataset(
-        places365_train_dataset, PLACES365_LABELS, transform
+        places365_dataset["train"],
+        PLACES365_LABELS,
+        transform,
     )
     places365_train_path = args.outdir / "places365"
     places365_train_dataset.save_to_disk(places365_train_path)
     if not args.no_zip:
+        LOG.info("Zipping Places365 train dataset")
         shutil.make_archive(places365_train_path, "zip", places365_train_path)
 
     total_time = timer() - start_time
@@ -156,15 +159,15 @@ def filter_dataset(dataset, label_names, transform, new_label_names=None):
     )
     label_map = {orig: i for i, orig in enumerate(label_nums)}
     dataset = dataset.filter(
-        lambda examples: [label in label_nums for label in examples["label"]],
+        lambda labels: [label in label_nums for label in labels],
+        input_columns=["label"],
         batched=True,
-        num_proc=4,
-        batch_size=1000,
+        batch_size=1024,
     )
     dataset = dataset.map(
-        lambda x: {
-            "image": transform(x["image"]),
-            "label": label_map[x["label"]],
+        lambda example: {
+            "image": transform(example["image"]),
+            "label": label_map[example["label"]],
         },
         num_proc=4,
     )
@@ -228,7 +231,7 @@ def build_parser(
     )
     parser.add_argument(
         "--no-zip",
-        action="store_false",
+        action="store_true",
         help="if flag is given, skip writing zip archives",
     )
     parser.add_argument(
