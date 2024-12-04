@@ -11,7 +11,9 @@ This class project investigates the effectiveness of calibration methods for zer
 
 ## Quickstart
 
-The code in this repository is designed to be run in Google Colab.
+The code in this repository is designed to be run in Google Colab. The data has already been prepared and uploaded to Google Drive for use there.
+
+## Local Execution
 
 Alternatively, to run locally, create a Python virtual environment and run:
 
@@ -19,13 +21,14 @@ Alternatively, to run locally, create a Python virtual environment and run:
 pip install -r requirements.txt
 ```
 
-## Data Processing
+### Data Processing
 
-If running this project in Google Colab, the preprocessed data is already
-set up to be loaded into the notebook from Google Drive shared links.
+If running this project in Google Colab, the preprocessed data is already set up to be loaded into the notebook from Google Drive shared links. The data can be downloaded locally from these links:
 
-If running locally, use the following instructions to fetch the data and
-process it for use in the notebook:
+- [cleaned Places365 subset](https://drive.google.com/file/d/1w-0LncVMfBsdtqX7jT-jCTdAnLBZuFtU/view?usp=drive_link)
+- [cleand AID subset](https://drive.google.com/file/d/1CTdCFoo88_ygMb2PNGnK3QTi8xk_naoA/view?usp=drive_link)
+
+To re-create the cleaned data subsets from the original data sources, follow these instructions for fetching the data and running the `dataprep.py` script locally after activating the python envirnoment:
 
 ```bash
 mkdir data/raw
@@ -67,8 +70,6 @@ python dataprep.py ./data/raw/ ./data/processed
   - Imagenet (selected classes)
   - Places365 (selected classes)
   - AID (selected classes)
-
-
 
 ### Results
 
