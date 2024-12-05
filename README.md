@@ -5,7 +5,7 @@ This class project investigates the effectiveness of calibration methods for zer
 ## Team Members
 
 - Ayush Agarwal (aagarw41@jhu.edu)
-- Kahnran Braxton (kbraxto6@jhu.edu)
+- Kahnrad Braxton (kbraxto6@jhu.edu)
 - Cameron Carpenter (ccarpe18@jhu.edu)
 - William Shiber (wshiber1@jhu.edu)
 
