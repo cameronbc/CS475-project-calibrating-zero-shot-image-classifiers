@@ -13,7 +13,7 @@ This class project investigates the effectiveness of calibration methods for zer
 
 The code in this repository is designed to be run in Google Colab. The data has already been prepared and uploaded to Google Drive for use there.
 
-
+ACCESS COLLAB HERE: https://github.com/cameronbc/CS475-project-calibrating-zero-shot-image-classifiers/blob/main/zero-shot-calibration.ipynb
 
 ## Local Execution
 
