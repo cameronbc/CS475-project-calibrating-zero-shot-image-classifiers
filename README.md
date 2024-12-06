@@ -13,6 +13,8 @@ This class project investigates the effectiveness of calibration methods for zer
 
 The code in this repository is designed to be run in Google Colab. The data has already been prepared and uploaded to Google Drive for use there.
 
+
+
 ## Local Execution
 
 Alternatively, to run locally, create a Python virtual environment and run:
@@ -57,17 +59,16 @@ python dataprep.py ./data/raw/ ./data/processed
 - Platt Scaling
 - Isotonic Regression
 - Similarity Binning Averaging
+- SigLIP
 
 ### Conditions
 
 - Same class, same domain
 - Different class, same domain
 - Different domain, same class
-- Different domain, different class
 
 ### Datasets
 
-  - Imagenet (selected classes)
   - Places365 (selected classes)
   - AID (selected classes)
 
